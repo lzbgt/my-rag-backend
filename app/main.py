@@ -199,9 +199,11 @@ def new_wx_profile(profile: WxProfile, db: Session = Depends(get_db), sec: str =
                                                      profile.activate_code).first()
                 if not ac:
                     raise HTTPException(status_code=400, detail="激活码不存在")
-                if ac.user_id:
-                    raise HTTPException(status_code=400, detail="激活码已被使用过了")
-                ac.user_id = user.id
+                if ac.user_id and ac.user_id != user.id:
+                    raise HTTPException(status_code=400, detail="激活码已被其他人使用过了")
+
+                if ac.user_id != user.id:
+                    ac.user_id = user.id
             db.commit()
             return {"message": "Profile updated successfully"}
         else:
