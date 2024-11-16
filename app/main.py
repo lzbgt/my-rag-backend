@@ -220,8 +220,8 @@ def new_wx_profile(profile: WxProfile, db: Session = Depends(get_db), sec: str =
 
 
 @app.get("/paper_answers", response_model=QAResponse)
-def get_paper_answers(school: int, paper_id: int, db: Session = Depends(get_db), openid: str = "", sec: str = Depends(verify_secret)):
-    logger.info(f"user: {openid}, school: {school}, paper_id: {paper_id}")
+def get_paper_answers(school: int, paper_id: int, openid: str = "", db: Session = Depends(get_db), sec: str = Depends(verify_secret)):
+    logger.info(f"openid: {openid}, school: {school}, paper_id: {paper_id}")
     if openid:
         user = db.query(User).filter(User.openid == openid).first()
         if not user:
@@ -230,8 +230,11 @@ def get_paper_answers(school: int, paper_id: int, db: Session = Depends(get_db),
                                             user.id).first()
         if not r:
             raise HTTPException(status_code=400, detail="用户未激活")
-        ActionLog(user_id=user.id, action="get_paper_answers",
-                  detail={"school": school, "paper_id": paper_id})
+        al = ActionLog(user_id=user.id, action="get_paper_answers",
+                       detail={"school": school, "paper_id": paper_id})
+        db.add(al)
+        db.commit()
+        logger.info(f"log: {openid}, {school}, {paper_id}")
 
     r = db.query(PaperAnswer).filter(PaperAnswer.paper_id ==
                                      paper_id, PaperAnswer.school == school).first()
