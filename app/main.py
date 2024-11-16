@@ -5,7 +5,7 @@ from fastapi.responses import Response
 from sqlalchemy.dialects.mysql import LONGTEXT
 from pydantic import BaseModel
 import requests
-from sqlalchemy import Column, Integer, String, UniqueConstraint, create_engine, DateTime
+from sqlalchemy import Column, Integer, String, UniqueConstraint, create_engine, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from app.utils.mylogger import get_logger
@@ -57,6 +57,13 @@ class User(BaseRecord):
     mobile = Column(String(13), unique=True, index=True)
     realname = Column(String(255))
     activate_code = Column(String(255))
+
+
+class ActionLog(BaseRecord):
+    __tablename__ = 'action_logs'
+    user_id = Column(Integer)
+    action = Column(String(255), nullable=True)
+    detail = Column(JSON, nullable=True)
 
 
 class ActivationCode(BaseRecord):
@@ -213,8 +220,19 @@ def new_wx_profile(profile: WxProfile, db: Session = Depends(get_db), sec: str =
 
 
 @app.get("/paper_answers", response_model=QAResponse)
-def get_paper_answers(school: int, paper_id: int, db: Session = Depends(get_db), sec: str = Depends(verify_secret)):
-    logger.info(f"school: {school}, paper_id: {paper_id}")
+def get_paper_answers(school: int, paper_id: int, db: Session = Depends(get_db), openid: str = "", sec: str = Depends(verify_secret)):
+    logger.info(f"user: {openid}, school: {school}, paper_id: {paper_id}")
+    if openid:
+        user = db.query(User).filter(User.openid == openid).first()
+        if not user:
+            raise HTTPException(status_code=400, detail="用户不存在")
+        r = db.query(ActivationCode).filter(ActivationCode.user_id ==
+                                            user.id).first()
+        if not r:
+            raise HTTPException(status_code=400, detail="用户未激活")
+        ActionLog(user_id=user.id, action="get_paper_answers",
+                  detail={"school": school, "paper_id": paper_id})
+
     r = db.query(PaperAnswer).filter(PaperAnswer.paper_id ==
                                      paper_id, PaperAnswer.school == school).first()
     if not r:
